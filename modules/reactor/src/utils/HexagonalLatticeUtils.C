@@ -95,6 +95,33 @@ HexagonalLatticeUtils::HexagonalLatticeUtils(const Real bundle_inner_flat_to_fla
                " is too small to fit the given pins and wire wrap!");
 }
 
+#define ISQRT_MAX 0xFFFFFFFFULL
+static inline uint64_t isqrt(uint64_t x) {
+    uint64_t r;
+
+    if (x == 0) {
+        return 0;
+    }
+
+    r = (uint64_t) std::sqrt((double) x);
+
+    /* A seed above ISQRT_MAX would overflow when squared; it is also always
+     * wrong, since no root exceeds ISQRT_MAX. */
+    if (r > ISQRT_MAX) {
+        r = ISQRT_MAX;
+    }
+
+    while (r > 0 && r * r > x) {
+        --r;
+    }
+    /* r+1 == 2^32 would square to exactly 2^64 and wrap to 0, which would make
+     * the comparison succeed and walk r off the end. */
+    while (r < ISQRT_MAX && (r + 1) * (r + 1) <= x) {
+        ++r;
+    }
+    return r;
+}
+
 unsigned int
 HexagonalLatticeUtils::pins(const unsigned int n) const
 {
@@ -109,30 +136,25 @@ HexagonalLatticeUtils::pins(const unsigned int n) const
 unsigned int
 HexagonalLatticeUtils::totalPins(const unsigned int n) const
 {
-  unsigned int total = 0;
-  for (unsigned int i = 1; i <= n; ++i)
-    total += pins(i);
-
-  return total;
+  //A003215
+  return n == 0 ? 0 : 3 * n * (n - 1) + 1;
 }
 
 unsigned int
 HexagonalLatticeUtils::rings(const unsigned int n) const
 {
-  auto remaining = n;
-  unsigned int i = 0;
+  // Inverse of A003215 [3i^2 - 3i + 1 = n]
+  // (3 + sqrt(12n - 3)) / 6
+  if (n == 0) { return 0; }
 
-  while (remaining > 0)
-  {
-    i += 1;
-    remaining -= pins(i);
-  }
+  unsigned int disc = 12 * n - 3;
+  unsigned int root = isqrt(disc);
 
-  if (n != totalPins(i))
+  if (root * root != disc || (3 + root) % 6 != 0)
     mooseError("Number of pins " + std::to_string(n) +
                " not evenly divisible in a hexagonal lattice!");
 
-  return i;
+  return (3 + root) / 6;
 }
 
 Real
